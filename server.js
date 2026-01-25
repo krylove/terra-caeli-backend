@@ -7,8 +7,12 @@ const path = require('path');
 const app = express();
 
 // Middleware
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
+  : '*';
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || '*',
+  origin: allowedOrigins,
   credentials: true,
   optionsSuccessStatus: 200
 };
