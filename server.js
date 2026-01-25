@@ -9,10 +9,23 @@ const app = express();
 // Middleware
 const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-  : '*';
+  : [];
 
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    // Разрешить запросы без origin (например, мобильные приложения или curl)
+    if (!origin) return callback(null, true);
+
+    // Если нет allowedOrigins, разрешить все
+    if (allowedOrigins.length === 0) return callback(null, true);
+
+    // Проверить, есть ли origin в списке разрешенных
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200
 };
