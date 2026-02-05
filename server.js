@@ -6,6 +6,19 @@ const path = require('path');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
+// CRITICAL: Проверка JWT_SECRET при старте
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  console.error('❌ CRITICAL: JWT_SECRET должен быть минимум 32 символа!');
+  console.error('   Установите надежный секрет в .env файле');
+  process.exit(1);
+}
+
+// Проверка MongoDB URI
+if (!process.env.MONGODB_URI) {
+  console.error('❌ CRITICAL: MONGODB_URI не установлен!');
+  process.exit(1);
+}
+
 const app = express();
 
 // Security headers

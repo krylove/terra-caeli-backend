@@ -9,8 +9,10 @@ const authMiddleware = (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Нет токена авторизации' });
     }
 
-    // Проверяем токен
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Проверяем токен с указанием алгоритма (защита от algorithm substitution attack)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ['HS256']
+    });
     req.admin = decoded;
     next();
   } catch (error) {

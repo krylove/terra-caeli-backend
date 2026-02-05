@@ -1,12 +1,39 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const { body, validationResult } = require('express-validator');
 const Admin = require('../models/Admin');
 const { authMiddleware } = require('../middleware/auth');
 
+// Хелпер для скрытия ошибок в production
+const getErrorMessage = (error) => {
+  return process.env.NODE_ENV === 'production' ? 'Внутренняя ошибка сервера' : error.message;
+};
+
+// Валидация логина
+const loginValidation = [
+  body('username').trim().notEmpty().withMessage('Имя пользователя обязательно'),
+  body('password').notEmpty().withMessage('Пароль обязателен'),
+];
+
+// Валидация регистрации
+const registerValidation = [
+  body('username').trim().notEmpty().isLength({ min: 3, max: 50 }).withMessage('Имя пользователя 3-50 символов'),
+  body('email').isEmail().normalizeEmail().withMessage('Некорректный email'),
+  body('password').isLength({ min: 8 }).withMessage('Пароль минимум 8 символов')
+    .matches(/[A-Z]/).withMessage('Пароль должен содержать заглавную букву')
+    .matches(/[0-9]/).withMessage('Пароль должен содержать цифру'),
+];
+
 // Вход для админа
-router.post('/login', async (req, res) => {
+router.post('/login', loginValidation, async (req, res) => {
   try {
+    // Проверка валидации
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
     const { username, password } = req.body;
 
     // Находим админа
@@ -21,11 +48,11 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Неверные учетные данные' });
     }
 
-    // Создаем JWT токен
+    // Создаем JWT токен с указанием алгоритма
     const token = jwt.sign(
       { id: admin._id, username: admin.username, role: admin.role },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '7d', algorithm: 'HS256' }
     );
 
     res.json({
@@ -39,13 +66,19 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
   }
 });
 
 // Регистрация первого админа (только если нет других)
-router.post('/register', async (req, res) => {
+router.post('/register', registerValidation, async (req, res) => {
   try {
+    // Проверка валидации
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
     // Проверяем, есть ли уже админы
     const adminCount = await Admin.countDocuments();
     if (adminCount > 0) {
@@ -67,11 +100,11 @@ router.post('/register', async (req, res) => {
 
     await admin.save();
 
-    // Создаем токен
+    // Создаем токен с указанием алгоритма
     const token = jwt.sign(
       { id: admin._id, username: admin.username, role: admin.role },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '7d', algorithm: 'HS256' }
     );
 
     res.status(201).json({
@@ -85,7 +118,7 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(400).json({ success: false, message: getErrorMessage(error) });
   }
 });
 
@@ -95,7 +128,7 @@ router.get('/verify', authMiddleware, async (req, res) => {
     const admin = await Admin.findById(req.admin.id).select('-password');
     res.json({ success: true, admin });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
   }
 });
 

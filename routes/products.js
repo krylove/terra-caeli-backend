@@ -1,7 +1,25 @@
 const express = require('express');
 const router = express.Router();
+const { body, validationResult } = require('express-validator');
 const Product = require('../models/Product');
 const { authMiddleware } = require('../middleware/auth');
+
+// Хелпер для скрытия ошибок в production
+const getErrorMessage = (error) => {
+  return process.env.NODE_ENV === 'production' ? 'Внутренняя ошибка сервера' : error.message;
+};
+
+// Валидация товара
+const productValidation = [
+  body('name').trim().notEmpty().withMessage('Название обязательно').isLength({ max: 200 }),
+  body('description').optional().trim().isLength({ max: 5000 }),
+  body('price').isFloat({ min: 0 }).withMessage('Цена должна быть положительным числом'),
+  body('category').optional().isMongoId().withMessage('Некорректный ID категории'),
+  body('images').optional().isArray(),
+  body('inStock').optional().isBoolean(),
+  body('featured').optional().isBoolean(),
+  body('material').optional().trim().isLength({ max: 100 }),
+];
 
 // Получить все товары (с фильтрацией)
 router.get('/', async (req, res) => {
@@ -23,7 +41,7 @@ router.get('/', async (req, res) => {
 
     res.json({ success: true, data: products });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
   }
 });
 
@@ -39,25 +57,37 @@ router.get('/:id', async (req, res) => {
 
     res.json({ success: true, data: product });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
   }
 });
 
 // Создать товар (только для админа)
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, productValidation, async (req, res) => {
   try {
+    // Проверка валидации
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
     const product = new Product(req.body);
     await product.save();
 
     res.status(201).json({ success: true, data: product });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(400).json({ success: false, message: getErrorMessage(error) });
   }
 });
 
 // Обновить товар (только для админа)
-router.put('/:id', authMiddleware, async (req, res) => {
+router.put('/:id', authMiddleware, productValidation, async (req, res) => {
   try {
+    // Проверка валидации
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
     const product = await Product.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -70,7 +100,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     res.json({ success: true, data: product });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(400).json({ success: false, message: getErrorMessage(error) });
   }
 });
 
@@ -85,7 +115,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     res.json({ success: true, message: 'Товар удален' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: getErrorMessage(error) });
   }
 });
 
