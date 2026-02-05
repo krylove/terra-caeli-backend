@@ -21,11 +21,20 @@ const productValidation = [
   body('material').optional().trim().isLength({ max: 100 }),
 ];
 
-// Получить все товары (с фильтрацией)
+// Получить все товары (с фильтрацией и поиском)
 router.get('/', async (req, res) => {
   try {
-    const { category, featured, inStock, sort } = req.query;
+    const { category, featured, inStock, sort, search } = req.query;
     let query = {};
+
+    // Поиск по названию и описанию
+    if (search && typeof search === 'string' && search.trim().length >= 2) {
+      const searchRegex = new RegExp(search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      query.$or = [
+        { name: searchRegex },
+        { description: searchRegex }
+      ];
+    }
 
     if (category) query.category = category;
     if (featured) query.featured = featured === 'true';
