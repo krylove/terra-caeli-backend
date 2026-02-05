@@ -1,5 +1,16 @@
 const nodemailer = require('nodemailer');
 
+// Экранирование HTML для защиты от XSS
+const escapeHtml = (str) => {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 // Настройка транспорта
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
@@ -15,17 +26,17 @@ const transporter = nodemailer.createTransport({
 const sendOrderEmail = async (order) => {
   try {
     const itemsList = order.items.map(item =>
-      `- ${item.name} x ${item.quantity} = ${(item.price * item.quantity).toFixed(2)} ₽`
+      `- ${escapeHtml(item.name)} x ${item.quantity} = ${(item.price * item.quantity).toFixed(2)} ₽`
     ).join('\n');
 
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: order.customer.email,
-      subject: `Заказ ${order.orderNumber} принят`,
+      subject: `Заказ ${escapeHtml(order.orderNumber)} принят`,
       html: `
         <h2>Спасибо за ваш заказ!</h2>
-        <p>Здравствуйте, ${order.customer.firstName}!</p>
-        <p>Ваш заказ <strong>${order.orderNumber}</strong> успешно оформлен.</p>
+        <p>Здравствуйте, ${escapeHtml(order.customer.firstName)}!</p>
+        <p>Ваш заказ <strong>${escapeHtml(order.orderNumber)}</strong> успешно оформлен.</p>
 
         <h3>Состав заказа:</h3>
         <pre>${itemsList}</pre>
@@ -34,9 +45,9 @@ const sendOrderEmail = async (order) => {
 
         <h3>Адрес доставки:</h3>
         <p>
-          ${order.shipping.address}<br>
-          ${order.shipping.city}, ${order.shipping.postalCode}<br>
-          ${order.shipping.country}
+          ${escapeHtml(order.shipping.address)}<br>
+          ${escapeHtml(order.shipping.city)}, ${escapeHtml(order.shipping.postalCode)}<br>
+          ${escapeHtml(order.shipping.country || 'Россия')}
         </p>
 
         <p>Мы свяжемся с вами в ближайшее время для уточнения деталей доставки.</p>
@@ -56,22 +67,22 @@ const sendOrderEmail = async (order) => {
 const sendAdminNotification = async (order) => {
   try {
     const itemsList = order.items.map(item =>
-      `- ${item.name} x ${item.quantity} = ${(item.price * item.quantity).toFixed(2)} ₽`
+      `- ${escapeHtml(item.name)} x ${item.quantity} = ${(item.price * item.quantity).toFixed(2)} ₽`
     ).join('\n');
 
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: process.env.EMAIL_USER,
-      subject: `Новый заказ ${order.orderNumber}`,
+      subject: `Новый заказ ${escapeHtml(order.orderNumber)}`,
       html: `
         <h2>Получен новый заказ</h2>
-        <p>Номер заказа: <strong>${order.orderNumber}</strong></p>
+        <p>Номер заказа: <strong>${escapeHtml(order.orderNumber)}</strong></p>
 
         <h3>Клиент:</h3>
         <p>
-          ${order.customer.firstName} ${order.customer.lastName}<br>
-          Email: ${order.customer.email}<br>
-          Телефон: ${order.customer.phone}
+          ${escapeHtml(order.customer.firstName)} ${escapeHtml(order.customer.lastName)}<br>
+          Email: ${escapeHtml(order.customer.email)}<br>
+          Телефон: ${escapeHtml(order.customer.phone)}
         </p>
 
         <h3>Состав заказа:</h3>
@@ -81,12 +92,12 @@ const sendAdminNotification = async (order) => {
 
         <h3>Адрес доставки:</h3>
         <p>
-          ${order.shipping.address}<br>
-          ${order.shipping.city}, ${order.shipping.postalCode}<br>
-          ${order.shipping.country}
+          ${escapeHtml(order.shipping.address)}<br>
+          ${escapeHtml(order.shipping.city)}, ${escapeHtml(order.shipping.postalCode)}<br>
+          ${escapeHtml(order.shipping.country || 'Россия')}
         </p>
 
-        ${order.notes ? `<h3>Комментарий:</h3><p>${order.notes}</p>` : ''}
+        ${order.notes ? `<h3>Комментарий:</h3><p>${escapeHtml(order.notes)}</p>` : ''}
       `
     };
 

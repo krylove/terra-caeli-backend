@@ -1,13 +1,41 @@
 const express = require('express');
 const router = express.Router();
+const { body, param, query, validationResult } = require('express-validator');
 const Order = require('../models/Order');
 const { authMiddleware } = require('../middleware/auth');
 const { createPayment, checkPayment } = require('../services/yookassa');
 const { sendOrderEmail } = require('../services/email');
 
+// Защита от NoSQL injection - проверка что значение строка
+const sanitizeString = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+};
+
+// Валидация заказа
+const orderValidation = [
+  body('items').isArray({ min: 1 }).withMessage('Корзина не может быть пустой'),
+  body('items.*.name').trim().notEmpty().withMessage('Название товара обязательно'),
+  body('items.*.price').isFloat({ min: 0 }).withMessage('Цена должна быть положительным числом'),
+  body('items.*.quantity').isInt({ min: 1 }).withMessage('Количество должно быть больше 0'),
+  body('customer.firstName').trim().notEmpty().withMessage('Имя обязательно'),
+  body('customer.lastName').trim().notEmpty().withMessage('Фамилия обязательна'),
+  body('customer.email').isEmail().normalizeEmail().withMessage('Некорректный email'),
+  body('customer.phone').trim().notEmpty().withMessage('Телефон обязателен'),
+  body('shipping.address').trim().notEmpty().withMessage('Адрес обязателен'),
+  body('shipping.city').trim().notEmpty().withMessage('Город обязателен'),
+  body('shipping.postalCode').trim().notEmpty().withMessage('Почтовый индекс обязателен'),
+];
+
 // Создать заказ
-router.post('/', async (req, res) => {
+router.post('/', orderValidation, async (req, res) => {
   try {
+    // Проверка валидации
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
     const { items, customer, shipping, notes } = req.body;
 
     // Вычисляем общую сумму
@@ -52,7 +80,13 @@ router.post('/', async (req, res) => {
 // Получить заказ по номеру (для клиента)
 router.get('/track/:orderNumber', async (req, res) => {
   try {
-    const order = await Order.findOne({ orderNumber: req.params.orderNumber })
+    // Защита от NoSQL injection - проверяем что orderNumber строка
+    const orderNumber = sanitizeString(req.params.orderNumber);
+    if (!orderNumber) {
+      return res.status(400).json({ success: false, message: 'Некорректный номер заказа' });
+    }
+
+    const order = await Order.findOne({ orderNumber })
       .populate('items.product', 'name images');
 
     if (!order) {
@@ -69,26 +103,38 @@ router.get('/track/:orderNumber', async (req, res) => {
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const { status, paymentStatus, page = 1, limit = 20 } = req.query;
-    let query = {};
+    let mongoQuery = {};
 
-    if (status) query.orderStatus = status;
-    if (paymentStatus) query.paymentStatus = paymentStatus;
+    // Защита от NoSQL injection - проверяем что параметры строки
+    const allowedStatuses = ['new', 'processing', 'shipped', 'delivered', 'cancelled'];
+    const allowedPaymentStatuses = ['pending', 'paid', 'failed'];
 
-    const orders = await Order.find(query)
+    if (status && typeof status === 'string' && allowedStatuses.includes(status)) {
+      mongoQuery.orderStatus = status;
+    }
+    if (paymentStatus && typeof paymentStatus === 'string' && allowedPaymentStatuses.includes(paymentStatus)) {
+      mongoQuery.paymentStatus = paymentStatus;
+    }
+
+    // Валидация пагинации
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+
+    const orders = await Order.find(mongoQuery)
       .populate('items.product', 'name images')
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
 
-    const total = await Order.countDocuments(query);
+    const total = await Order.countDocuments(mongoQuery);
 
     res.json({
       success: true,
       data: orders,
       pagination: {
         total,
-        page: parseInt(page),
-        pages: Math.ceil(total / limit)
+        page: pageNum,
+        pages: Math.ceil(total / limitNum)
       }
     });
   } catch (error) {
@@ -118,30 +164,45 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
 });
 
 // Webhook для обработки платежей от ЮKassa
+// TODO: Добавить проверку подписи от ЮKassa для безопасности
 router.post('/webhook/payment', async (req, res) => {
   try {
     const { object } = req.body;
 
+    // Валидация входных данных
+    if (!object || typeof object !== 'object' || !object.id || !object.status) {
+      return res.status(400).json({ success: false, message: 'Invalid webhook data' });
+    }
+
+    // Защита от NoSQL injection - проверяем что paymentId строка
+    const paymentId = sanitizeString(object.id);
+    if (!paymentId) {
+      return res.status(400).json({ success: false, message: 'Invalid payment ID' });
+    }
+
     if (object.status === 'succeeded') {
-      const order = await Order.findOne({ paymentId: object.id });
+      const order = await Order.findOne({ paymentId });
 
       if (order) {
         order.paymentStatus = 'paid';
         order.orderStatus = 'processing';
         await order.save();
+        console.log(`Платеж ${paymentId} успешен, заказ ${order.orderNumber} обновлён`);
       }
     } else if (object.status === 'canceled') {
-      const order = await Order.findOne({ paymentId: object.id });
+      const order = await Order.findOne({ paymentId });
 
       if (order) {
         order.paymentStatus = 'failed';
         await order.save();
+        console.log(`Платеж ${paymentId} отменён, заказ ${order.orderNumber} обновлён`);
       }
     }
 
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Webhook error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 

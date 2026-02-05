@@ -3,8 +3,31 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
+
+// Security headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// Rate limiting - защита от DDoS и brute force
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 100, // максимум 100 запросов с одного IP
+  message: { success: false, message: 'Слишком много запросов, попробуйте позже' }
+});
+app.use('/api/', limiter);
+
+// Строгий лимит для авторизации
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 час
+  max: 10, // максимум 10 попыток входа в час
+  message: { success: false, message: 'Слишком много попыток входа, попробуйте через час' }
+});
+app.use('/api/auth/login', authLimiter);
 
 // Middleware
 const allowedOrigins = process.env.FRONTEND_URL
@@ -30,8 +53,8 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' })); // Лимит размера JSON
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Статическая папка для загруженных файлов
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -63,12 +86,14 @@ app.get('/', (req, res) => {
   });
 });
 
-// Обработка ошибок
+// Обработка ошибок - не возвращаем внутренние сообщения клиенту
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error:', err.message);
+  // В production не раскрываем детали ошибки
+  const isProduction = process.env.NODE_ENV === 'production';
   res.status(500).json({
     success: false,
-    message: err.message || 'Внутренняя ошибка сервера'
+    message: isProduction ? 'Внутренняя ошибка сервера' : err.message
   });
 });
 
