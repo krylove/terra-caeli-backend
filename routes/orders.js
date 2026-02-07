@@ -35,7 +35,7 @@ router.post('/', orderValidation, async (req, res) => {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { items, customer, shipping, notes } = req.body;
+    const { items, customer, shipping, notes, paymentMethod } = req.body;
 
     // Вычисляем общую сумму (товары + доставка)
     const itemsTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -48,7 +48,8 @@ router.post('/', orderValidation, async (req, res) => {
       customer,
       shipping,
       totalAmount,
-      notes
+      notes,
+      paymentMethod: paymentMethod || 'sbp'
     });
 
     await order.save();

@@ -30,6 +30,8 @@ const sendOrderNotification = async (order) => {
     const address = order.shipping?.address || ''
     const city = order.shipping?.city || ''
 
+    const paymentMethodName = order.paymentMethod === 'cash_courier' ? 'Наличные курьеру' : 'СБП'
+
     const text = `🛒 <b>Новый заказ #${order.orderNumber}</b>
 
 👤 ${order.customer.firstName} ${order.customer.lastName}
@@ -38,6 +40,7 @@ const sendOrderNotification = async (order) => {
 
 📦 ${deliveryName} → ${city}
 🏠 ${address}
+💳 ${paymentMethodName}
 
 💰 <b>Итого: ${order.totalAmount.toLocaleString('ru-RU')} ₽</b> (доставка: ${deliveryCost})
 

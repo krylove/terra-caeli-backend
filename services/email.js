@@ -43,6 +43,8 @@ const sendOrderEmail = async (order) => {
 
         <h3>Сумма заказа: ${order.totalAmount.toFixed(2)} ₽</h3>
 
+        <p><strong>Способ оплаты:</strong> ${order.paymentMethod === 'cash_courier' ? 'Наличными курьеру' : 'СБП'}</p>
+
         <h3>Адрес доставки:</h3>
         <p>
           ${escapeHtml(order.shipping.address)}<br>
@@ -50,7 +52,10 @@ const sendOrderEmail = async (order) => {
           ${escapeHtml(order.shipping.country || 'Россия')}
         </p>
 
-        <p>Мы свяжемся с вами в ближайшее время для уточнения деталей доставки.</p>
+        ${order.paymentMethod === 'cash_courier'
+          ? '<p>Оплата будет произведена наличными при получении заказа от курьера.</p>'
+          : '<p>Мы свяжемся с вами в ближайшее время и отправим ссылку на оплату.</p>'
+        }
 
         <p>С уважением,<br>Команда интернет-магазина ваз</p>
       `
@@ -89,6 +94,8 @@ const sendAdminNotification = async (order) => {
         <pre>${itemsList}</pre>
 
         <h3>Сумма заказа: ${order.totalAmount.toFixed(2)} ₽</h3>
+
+        <p><strong>Способ оплаты:</strong> ${order.paymentMethod === 'cash_courier' ? 'Наличными курьеру' : 'СБП'}</p>
 
         <h3>Адрес доставки:</h3>
         <p>
