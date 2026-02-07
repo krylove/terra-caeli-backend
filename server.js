@@ -21,6 +21,9 @@ if (!process.env.MONGODB_URI) {
 
 const app = express();
 
+// Trust proxy (Nginx) для корректной работы rate-limit и IP-определения
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
