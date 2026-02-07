@@ -107,7 +107,105 @@ const sendAdminNotification = async (order) => {
   }
 };
 
+// Отправка ссылки на оплату клиенту
+const sendPaymentLinkEmail = async (order) => {
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: order.customer.email,
+      subject: `Оплата заказа ${escapeHtml(order.orderNumber)} — Terra Caeli`,
+      html: `
+        <h2>Ссылка на оплату</h2>
+        <p>Здравствуйте, ${escapeHtml(order.customer.firstName)}!</p>
+        <p>Для оплаты заказа <strong>${escapeHtml(order.orderNumber)}</strong> на сумму <strong>${order.totalAmount.toFixed(2)} ₽</strong>, перейдите по ссылке:</p>
+
+        <p style="margin: 24px 0;">
+          <a href="${escapeHtml(order.paymentLink)}" style="background-color: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+            Оплатить через СБП
+          </a>
+        </p>
+
+        <p style="color: #666; font-size: 14px;">Или скопируйте ссылку: ${escapeHtml(order.paymentLink)}</p>
+
+        <p>С уважением,<br>Terra Caeli</p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Payment link email sent for order ${order.orderNumber}`);
+  } catch (error) {
+    console.error('Ошибка отправки ссылки на оплату:', error);
+  }
+};
+
+// Уведомление об отправке заказа
+const sendShippedEmail = async (order) => {
+  try {
+    const DELIVERY_NAMES = {
+      cdek_pvz: 'СДЭК (пункт выдачи)',
+      cdek_courier: 'СДЭК (курьер)',
+      post: 'Почта России'
+    };
+    const deliveryName = DELIVERY_NAMES[order.shipping?.method] || 'Служба доставки';
+
+    const trackingInfo = order.trackingNumber
+      ? `<p>Трек-номер для отслеживания: <strong>${escapeHtml(order.trackingNumber)}</strong></p>`
+      : '';
+
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: order.customer.email,
+      subject: `Заказ ${escapeHtml(order.orderNumber)} отправлен — Terra Caeli`,
+      html: `
+        <h2>Ваш заказ отправлен!</h2>
+        <p>Здравствуйте, ${escapeHtml(order.customer.firstName)}!</p>
+        <p>Заказ <strong>${escapeHtml(order.orderNumber)}</strong> передан в доставку.</p>
+
+        <p>Способ доставки: <strong>${deliveryName}</strong></p>
+        ${trackingInfo}
+
+        <p>Адрес доставки: ${escapeHtml(order.shipping.city)}, ${escapeHtml(order.shipping.address)}</p>
+
+        <p>С уважением,<br>Terra Caeli</p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Shipped email sent for order ${order.orderNumber}`);
+  } catch (error) {
+    console.error('Ошибка отправки уведомления об отправке:', error);
+  }
+};
+
+// Уведомление о доставке заказа
+const sendDeliveredEmail = async (order) => {
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_FROM,
+      to: order.customer.email,
+      subject: `Заказ ${escapeHtml(order.orderNumber)} доставлен — Terra Caeli`,
+      html: `
+        <h2>Заказ доставлен!</h2>
+        <p>Здравствуйте, ${escapeHtml(order.customer.firstName)}!</p>
+        <p>Заказ <strong>${escapeHtml(order.orderNumber)}</strong> успешно доставлен.</p>
+
+        <p>Спасибо, что выбрали Terra Caeli! Будем рады видеть вас снова.</p>
+
+        <p>С уважением,<br>Terra Caeli</p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Delivered email sent for order ${order.orderNumber}`);
+  } catch (error) {
+    console.error('Ошибка отправки уведомления о доставке:', error);
+  }
+};
+
 module.exports = {
   sendOrderEmail,
-  sendAdminNotification
+  sendAdminNotification,
+  sendPaymentLinkEmail,
+  sendShippedEmail,
+  sendDeliveredEmail
 };

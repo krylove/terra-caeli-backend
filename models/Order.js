@@ -87,6 +87,14 @@ const orderSchema = new mongoose.Schema({
     enum: ['new', 'processing', 'shipped', 'delivered', 'cancelled'],
     default: 'new'
   },
+  trackingNumber: {
+    type: String,
+    default: ''
+  },
+  paymentLink: {
+    type: String,
+    default: ''
+  },
   notes: {
     type: String,
     default: ''

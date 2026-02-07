@@ -3,7 +3,7 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const Order = require('../models/Order');
 const { authMiddleware } = require('../middleware/auth');
-const { sendOrderEmail, sendAdminNotification } = require('../services/email');
+const { sendOrderEmail, sendAdminNotification, sendPaymentLinkEmail, sendShippedEmail, sendDeliveredEmail } = require('../services/email');
 const { sendOrderNotification, sendPaymentNotification } = require('../services/telegram');
 
 // Защита от NoSQL injection - проверка что значение строка
@@ -136,11 +136,12 @@ router.get('/', authMiddleware, async (req, res) => {
 // Обновить статус заказа (только для админа)
 router.put('/:id/status', authMiddleware, async (req, res) => {
   try {
-    const { orderStatus, paymentStatus } = req.body;
+    const { orderStatus, paymentStatus, trackingNumber } = req.body;
 
     const updateData = { updatedAt: Date.now() };
     if (orderStatus) updateData.orderStatus = orderStatus;
     if (paymentStatus) updateData.paymentStatus = paymentStatus;
+    if (trackingNumber !== undefined) updateData.trackingNumber = sanitizeString(trackingNumber);
 
     const order = await Order.findByIdAndUpdate(
       req.params.id,
@@ -152,10 +153,45 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Заказ не найден' });
     }
 
+    // Email-уведомления клиенту при смене статуса
+    if (orderStatus === 'shipped') {
+      sendShippedEmail(order).catch(err => console.error('Shipped email error:', err.message));
+    }
+    if (orderStatus === 'delivered') {
+      sendDeliveredEmail(order).catch(err => console.error('Delivered email error:', err.message));
+    }
+
     // Telegram-уведомление при подтверждении оплаты
     if (paymentStatus === 'paid') {
       sendPaymentNotification(order).catch(err => console.error('Telegram payment error:', err.message));
     }
+
+    res.json({ success: true, data: order });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+// Отправить ссылку на оплату клиенту (только для админа)
+router.post('/:id/send-payment-link', authMiddleware, async (req, res) => {
+  try {
+    const { paymentLink } = req.body;
+
+    if (!paymentLink || typeof paymentLink !== 'string' || !paymentLink.trim()) {
+      return res.status(400).json({ success: false, message: 'Укажите ссылку на оплату' });
+    }
+
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      { paymentLink: paymentLink.trim(), updatedAt: Date.now() },
+      { new: true }
+    );
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Заказ не найден' });
+    }
+
+    await sendPaymentLinkEmail(order);
 
     res.json({ success: true, data: order });
   } catch (error) {
