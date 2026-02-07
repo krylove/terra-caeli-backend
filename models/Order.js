@@ -40,6 +40,11 @@ const orderSchema = new mongoose.Schema({
     }
   },
   shipping: {
+    method: {
+      type: String,
+      enum: ['cdek_pvz', 'cdek_courier', 'post'],
+      default: 'post'
+    },
     address: {
       type: String,
       required: true
@@ -50,7 +55,15 @@ const orderSchema = new mongoose.Schema({
     },
     postalCode: {
       type: String,
-      required: true
+      default: ''
+    },
+    apartment: {
+      type: String,
+      default: ''
+    },
+    cost: {
+      type: Number,
+      default: 0
     },
     country: {
       type: String,
