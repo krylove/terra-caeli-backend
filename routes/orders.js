@@ -55,7 +55,8 @@ router.post('/', orderValidation, async (req, res) => {
     await order.save();
 
     // Создаем платеж в Сбербанке
-    const returnUrl = `${process.env.FRONTEND_URL || 'https://terracaeli.ru'}/order-success/${order.orderNumber}`;
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://terracaeli.ru').split(',')[0].trim();
+    const returnUrl = `${frontendUrl}/order-success/${order.orderNumber}`;
 
     const payment = await createPayment({
       amount: totalAmount,
