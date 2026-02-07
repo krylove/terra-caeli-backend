@@ -149,6 +149,7 @@ const sendPaymentLinkEmail = async (order) => {
 const sendShippedEmail = async (order) => {
   try {
     const DELIVERY_NAMES = {
+      own_courier: 'Курьер по Москве и МО',
       cdek_pvz: 'СДЭК (пункт выдачи)',
       cdek_courier: 'СДЭК (курьер)',
       post: 'Почта России'

@@ -2,6 +2,7 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID
 
 const DELIVERY_NAMES = {
+  own_courier: 'Курьер (Москва/МО)',
   cdek_pvz: 'СДЭК ПВЗ',
   cdek_courier: 'СДЭК Курьер',
   post: 'Почта России'

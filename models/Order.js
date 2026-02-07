@@ -41,7 +41,7 @@ const orderSchema = new mongoose.Schema({
   shipping: {
     method: {
       type: String,
-      enum: ['cdek_pvz', 'cdek_courier', 'post'],
+      enum: ['cdek_pvz', 'cdek_courier', 'post', 'own_courier'],
       default: 'post'
     },
     address: {
