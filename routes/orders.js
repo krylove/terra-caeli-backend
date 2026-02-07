@@ -4,7 +4,7 @@ const { body, validationResult } = require('express-validator');
 const Order = require('../models/Order');
 const { authMiddleware } = require('../middleware/auth');
 const { sendOrderEmail, sendAdminNotification } = require('../services/email');
-const { sendOrderNotification } = require('../services/telegram');
+const { sendOrderNotification, sendPaymentNotification } = require('../services/telegram');
 
 // Защита от NoSQL injection - проверка что значение строка
 const sanitizeString = (value) => {
@@ -150,6 +150,11 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Заказ не найден' });
+    }
+
+    // Telegram-уведомление при подтверждении оплаты
+    if (paymentStatus === 'paid') {
+      sendPaymentNotification(order).catch(err => console.error('Telegram payment error:', err.message));
     }
 
     res.json({ success: true, data: order });
